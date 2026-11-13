@@ -1,0 +1,1359 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <title>Ndejje University Main Campus - Enterprise Web SDI Prototype</title>
+    
+    <!-- Leaflet CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    
+    <style>
+        * { box-sizing: border-box; }
+        html, body { height: 100%; margin: 0; padding: 0; }
+        body {
+            display: flex;
+            flex-direction: column;
+            font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, Roboto, sans-serif;
+            background: #f4f6f9;
+            color: #333;
+        }
+
+        /* 1. TOP HEADER */
+        #header {
+            background-color: #002b55;
+            color: #ffffff;
+            padding: 8px 16px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+            z-index: 1000;
+        }
+        #header-title { font-size: 15px; font-weight: 700; letter-spacing: 0.3px; }
+        #header-crs {
+            font-size: 11px;
+            background: #004080;
+            padding: 4px 8px;
+            border-radius: 4px;
+            color: #cce0ff;
+            border: 1px solid #0059b3;
+        }
+
+        /* 2. SUB-TOOLBAR */
+        #toolbar {
+            background: #ffffff;
+            padding: 6px 14px;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            align-items: center;
+            border-bottom: 1px solid #dcdfe6;
+            font-size: 12px;
+            z-index: 999;
+        }
+        .search-container {
+            position: relative;
+            flex: 1;
+            min-width: 200px;
+            max-width: 350px;
+        }
+        #facility-search {
+            width: 100%;
+            padding: 5px 28px 5px 10px;
+            border: 1px solid #ccd1d9;
+            border-radius: 4px;
+            font-size: 12px;
+        }
+        .search-results {
+            position: absolute;
+            top: 100%;
+            left: 0;
+            right: 0;
+            background: #fff;
+            border: 1px solid #ccc;
+            border-top: none;
+            max-height: 180px;
+            overflow-y: auto;
+            z-index: 1500;
+            display: none;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.15);
+        }
+        .search-item {
+            padding: 6px 10px;
+            cursor: pointer;
+            border-bottom: 1px solid #f0f0f0;
+        }
+        .search-item:hover { background-color: #eaf2ff; }
+
+        .toolbar-group {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .select-role {
+            padding: 4px 8px;
+            border: 1px solid #007bff;
+            border-radius: 4px;
+            background: #eef6ff;
+            font-weight: 600;
+            color: #0056b3;
+            font-size: 11px;
+        }
+        .btn-tool {
+            background-color: #f8f9fa;
+            color: #333;
+            border: 1px solid #ced4da;
+            padding: 5px 10px;
+            font-size: 11px;
+            font-weight: 600;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .btn-tool:hover { background-color: #e2e6ea; }
+        .btn-primary { background-color: #007bff; color: white; border-color: #0069d9; }
+        .btn-primary:hover { background-color: #0062cc; }
+        .btn-edit-mode { background-color: #28a745; color: white; border-color: #218838; }
+
+        /* 3. MAP CANVAS */
+        #map { flex: 1; width: 100%; z-index: 1; }
+
+        /* 4. CARTOGRAPHIC ELEMENTS (North Arrow, Legend) */
+        .north-arrow {
+            background: rgba(255, 255, 255, 0.9);
+            border: 2px solid #333;
+            border-radius: 50%;
+            width: 36px;
+            height: 36px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            font-size: 13px;
+            box-shadow: 0 1px 4px rgba(0,0,0,0.3);
+            cursor: default;
+        }
+        .legend-card {
+            background: rgba(255, 255, 255, 0.92);
+            padding: 8px 12px;
+            border-radius: 6px;
+            box-shadow: 0 1px 5px rgba(0,0,0,0.25);
+            font-size: 11px;
+            line-height: 1.5;
+            max-width: 200px;
+        }
+        .legend-title { font-weight: bold; margin-bottom: 4px; border-bottom: 1px solid #ccc; padding-bottom: 2px; }
+        .legend-row { display: flex; align-items: center; gap: 6px; margin: 2px 0; }
+        .box-sym { width: 14px; height: 10px; display: inline-block; border-radius: 2px; border: 1px solid #333; }
+        .line-sym { width: 14px; height: 3px; display: inline-block; }
+
+        /* 5. MODAL DIALOGS (Metadata & Add Feature Form) */
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.5);
+            z-index: 2000;
+            align-items: center;
+            justify-content: center;
+        }
+        .modal-card {
+            background: #fff;
+            width: 90%;
+            max-width: 600px;
+            max-height: 85vh;
+            border-radius: 8px;
+            overflow-y: auto;
+            padding: 18px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+        }
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid #eee;
+            padding-bottom: 8px;
+            margin-bottom: 12px;
+        }
+        .modal-title { font-size: 16px; font-weight: bold; color: #002b55; }
+        .close-btn { background: none; border: none; font-size: 20px; cursor: pointer; color: #888; }
+        .close-btn:hover { color: #000; }
+        .meta-table { width: 100%; border-collapse: collapse; font-size: 12px; margin-bottom: 14px; }
+        .meta-table th, .meta-table td { border: 1px solid #ddd; padding: 6px 8px; text-align: left; }
+        .meta-table th { background: #f8f9fa; width: 35%; }
+        .form-row { margin-bottom: 10px; }
+        .form-row label { display: block; font-size: 11px; font-weight: 600; margin-bottom: 3px; }
+        .form-row input, .form-row select { width: 100%; padding: 6px; border: 1px solid #ccc; border-radius: 4px; font-size: 12px; }
+
+        /* Mobile adjustments */
+        @media (max-width: 700px) {
+            #header { flex-direction: column; align-items: flex-start; gap: 4px; }
+            #header-crs { font-size: 9px; }
+            #toolbar { flex-direction: column; align-items: stretch; }
+            .search-container { max-width: 100%; }
+        }
+    </style>
+<style>#user-role,#user-role ~ *{display:none!important}.toolbar-group:has(#user-role){display:none!important}#btn-add-feature{display:none!important}</style><style>@media (max-width:700px){#toolbar{flex-direction:row!important;align-items:center!important;flex-wrap:nowrap!important;gap:6px!important;padding:6px 8px!important}#toolbar .search-container{flex:1 1 auto;min-width:0}#toolbar .btn-tool{flex:0 0 auto;white-space:nowrap;padding:8px 10px}}</style><style>
+#header,#toolbar{display:none!important}
+#nhead{flex:0 0 auto;display:flex;align-items:center;gap:12px;padding:10px 14px;padding-top:calc(10px + env(safe-area-inset-top,0px));background:linear-gradient(#0b1c2f,#0e2338);color:#fff;border-bottom:1px solid rgba(255,255,255,.08);z-index:900}
+#nhead .logo{width:44px;height:44px;border-radius:12px;background:#0f4d4a;border:1px solid #1b7f78;display:flex;align-items:center;justify-content:center;font-size:22px}
+#nhead .tt{flex:1;min-width:0}#nhead .tt b{display:block;font-size:18px;line-height:1.15}#nhead .tt span{font-size:13px;color:#b8c7d6}
+#nmenu{width:44px;height:40px;border-radius:12px;border:1px solid rgba(255,255,255,.15);background:rgba(255,255,255,.06);color:#fff;font-size:20px}
+#npanel{position:fixed;top:0;bottom:0;left:0;width:min(90vw,400px);background:#0f2438;color:#fff;z-index:3000;transform:translateX(-102%);transition:transform .25s;overflow-y:auto;padding:14px;padding-top:calc(14px + env(safe-area-inset-top,0px));box-shadow:4px 0 20px rgba(0,0,0,.4)}
+#npanel.open{transform:none}
+#nshade{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:2900;display:none}#nshade.open{display:block}
+.ncard{background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:18px;padding:14px 16px;margin-bottom:12px}
+.nrow{display:flex;justify-content:space-between;align-items:center;padding:9px 0;border-top:1px dashed rgba(255,255,255,.15);font-size:14px;color:#c9d6e2}
+.nrow b{font-size:20px;color:#fff}
+.nh{display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;font-weight:700;font-size:17px}
+.npill{font-size:12px;font-weight:400;padding:5px 12px;border-radius:20px;background:#0f4d4a;border:1px solid #1b7f78;color:#d6f5f1}
+.nsrch .search-container{max-width:100%!important;margin-top:8px}.nsrch input{width:100%}
+#nclose{background:none;border:0;color:#fff;font-size:24px}
+.gpsbtn{width:34px;height:34px;line-height:30px;text-align:center;background:#fff;border-radius:4px;font-size:18px;cursor:pointer;box-shadow:0 1px 5px rgba(0,0,0,.4)}
+</style></head>
+<body><div id="nhead"><div class="logo">🎓</div><div class="tt"><b>Ndejje University</b><span>Main Campus Web Map</span></div><button id="nmenu" aria-label="Menu">☰</button></div>
+<div id="nshade"></div><div id="npanel"></div>
+
+    <!-- 1. HEADER SECTION WITH ACCURATE PROJECTION DESIGNATION (Point 3) -->
+    <div id="header">
+        <span id="header-title">Ndejje University Main Campus (Bombo) &mdash; Web SDI</span>
+        <span id="header-crs">
+            <b>Display:</b> WGS 84 / Web Mercator (EPSG:3857) | <b>Storage Standard:</b> UTM Zone 36N (EPSG:32636)
+        </span>
+    </div>
+
+    <!-- 2. TOOLBAR (Search, Role Selection, Metadata, Downloads, Live GPS) -->
+    <div id="toolbar">
+        <!-- Live Instant Search (Point 4 - FR3) -->
+        <div class="search-container">
+            <input type="text" id="facility-search" placeholder="🔍 Search campus facilities (e.g. Library, Pitch)..." oninput="liveSearch(this.value)">
+            <div id="search-results" class="search-results"></div>
+        </div>
+
+        <!-- Role Simulator (Point 5 - FR4, NFR2) -->
+        <div class="toolbar-group">
+            <span>Role:</span>
+            <select id="user-role" class="select-role" onchange="switchRole(this.value)">
+                <option value="public">Public (Read-Only)</option>
+                <option value="manager">Estates Data Manager (Edit Mode)</option>
+                <option value="admin">ICT System Admin (Full Rights)</option>
+            </select>
+        </div>
+
+        <button id="btn-add-feature" class="btn-tool btn-edit-mode" style="display:none;" onclick="toggleAddMode()">➕ Click Map to Add Point</button>
+        <button class="btn-tool btn-primary" onclick="findMyLocation()">📍 My Location</button>
+    </div>
+
+    <!-- 3. MAP CANVAS CONTAINER -->
+    <div id="map"></div>
+
+    <!-- 4. METADATA MODAL DIALOG (Point 6 - FR5) -->
+    <div id="metadata-modal" class="modal">
+        <div class="modal-card">
+            <div class="modal-header">
+                <span class="modal-title">ISO 19115 Spatial Metadata Summary</span>
+                <button class="close-btn" onclick="closeModal('metadata-modal')">&times;</button>
+            </div>
+            <table class="meta-table">
+                <tr><th>Dataset Title</th><td>Ndejje University Main Campus Baseline Geodatabase (2024–2026)</td></tr>
+                <tr><th>Data Custodian</th><td>Directorate of Estates & Works, Ndejje University</td></tr>
+                <tr><th>Technical Maintenance</th><td>Directorate of ICT / GIS Systems Section</td></tr>
+                <tr><th>Target Storage CRS</th><td>WGS 84 / UTM Zone 36N (EPSG:32636)</td></tr>
+                <tr><th>Web Publishing CRS</th><td>Geographic WGS 84 (EPSG:4326) / Web Mercator (EPSG:3857)</td></tr>
+                <tr><th>Survey Accuracy</th><td>Horizontal: &plusmn;0.10 m (RTK/Total Station); &plusmn;0.50 m (Provisional pins)</td></tr>
+                <tr><th>Primary Lineage</th><td>Detailed Topographic Survey of Ndejje University Main Campus (Bombo), Sheet 01 (Jul 2024, Survey Students Cohort).</td></tr>
+                <tr><th>Access Constraints</th><td>Open for academic/planning purposes. Underground utilities restricted under RBAC.</td></tr>
+            </table>
+            <div style="font-size:11px; color:#555; background:#fff3cd; padding:8px; border-radius:4px;">
+                ⚠️ <b>Ground Verification Notice (Point 7):</b> Perimeter boundaries and main academic blocks are derived from total station control. Pins for northern auxiliary facilities (e.g., Anatomy Block) are provisional and subject to post-grading GNSS field checks.
+            </div>
+        </div>
+    </div>
+
+    <!-- 5. DOWNLOAD DATASETS MODAL (Point 6 - FR5) -->
+    <div id="download-modal" class="modal">
+        <div class="modal-card">
+            <div class="modal-header">
+                <span class="modal-title">Export Standards-Compliant Spatial Datasets</span>
+                <button class="close-btn" onclick="closeModal('download-modal')">&times;</button>
+            </div>
+            <p style="font-size:12px; margin-top:0;">Download real OGC-compliant <b>GeoJSON</b> vector files directly to your machine:</p>
+            <table class="meta-table">
+                <tr>
+                    <th>1. Campus Boundary</th>
+                    <td>Vector Polygon (EPSG:4326)</td>
+                    <td><button class="btn-tool btn-primary" onclick="downloadGeoJSON('boundary')">Export .geojson</button></td>
+                </tr>
+                <tr>
+                    <th>2. Buildings Footprints</th>
+                    <td>Vector Polygon (EPSG:4326)</td>
+                    <td><button class="btn-tool btn-primary" onclick="downloadGeoJSON('buildings')">Export .geojson</button></td>
+                </tr>
+                <tr>
+                    <th>3. Sports Grounds</th>
+                    <td>Vector Polygon (EPSG:4326)</td>
+                    <td><button class="btn-tool btn-primary" onclick="downloadGeoJSON('sports')">Export .geojson</button></td>
+                </tr>
+                <tr>
+                    <th>4. Internal Road Network</th>
+                    <td>Vector LineString (EPSG:4326)</td>
+                    <td><button class="btn-tool btn-primary" onclick="downloadGeoJSON('roads')">Export .geojson</button></td>
+                </tr>
+                <tr>
+                    <th>5. Campus Facility Points</th>
+                    <td>Vector Point FeatureCollection</td>
+                    <td><button class="btn-tool btn-primary" onclick="downloadGeoJSON('facilities')">Export .geojson</button></td>
+                </tr>
+            </table>
+        </div>
+    </div>
+
+    <!-- 6. FEATURE ATTRIBUTE EDITING MODAL (Point 5 - FR4) -->
+    <div id="edit-modal" class="modal">
+        <div class="modal-card" style="max-width:400px;">
+            <div class="modal-header">
+                <span class="modal-title">Log / Edit Campus Spatial Feature</span>
+                <button class="close-btn" onclick="closeModal('edit-modal')">&times;</button>
+            </div>
+            <div class="form-row">
+                <label>Facility Name</label>
+                <input type="text" id="new-feat-name" placeholder="e.g. New Lecture Hall">
+            </div>
+            <div class="form-row">
+                <label>Infrastructure Category</label>
+                <select id="new-feat-category">
+                    <option value="Academic Facility">Academic Facility</option>
+                    <option value="Administration">Administration</option>
+                    <option value="Commercial / Catering">Commercial / Catering</option>
+                    <option value="Sports / Recreation">Sports / Recreation</option>
+                    <option value="Security / Checkpoint">Security / Checkpoint</option>
+                </select>
+            </div>
+            <div class="form-row">
+                <label>Survey / Asset Code</label>
+                <input type="text" id="new-feat-code" placeholder="e.g. BLD-15">
+            </div>
+            <div class="form-row">
+                <label>Coordinates (Lat, Lng)</label>
+                <input type="text" id="new-feat-coords" readonly style="background:#f0f0f0;">
+            </div>
+            <button class="btn-tool btn-primary" style="width:100%; padding:8px;" onclick="saveNewFeature()">💾 Save to Session Database</button>
+        </div>
+    </div>
+
+    <!-- Leaflet JS -->
+    <div id="policy-modal" class="modal"><div class="modal-card" id="policy-card"></div></div>
+    <div id="attr-modal" class="modal"><div class="modal-card" style="max-width:400px;" id="attr-card"></div></div>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script>
+        // =========================================================================
+        // DATA STRUCTURE: 5 DISTINCT DATASETS AS OGC GEOJSON (Points 1 & 2)
+        // =========================================================================
+
+        // DATASET 1: Campus Perimeter Boundary (Polygon)
+        var boundaryGeoJSON = {
+            "type": "FeatureCollection",
+            "name": "campus_boundary",
+            "features": [{
+                "type": "Feature",
+                "properties": { "id": 1, "name": "Ndejje University Main Campus Perimeter", "survey_year": 2024 },
+                "geometry": {
+                    "type": "Polygon",
+                    "coordinates": [[
+                        [32.47365, 0.61382], [32.47379, 0.61392], [32.47414, 0.61361], [32.47423, 0.61351],
+                        [32.47474, 0.61278], [32.47492, 0.61254], [32.47542, 0.61168], [32.47537, 0.61151],
+                        [32.47553, 0.61115], [32.47619, 0.61141], [32.47640, 0.61148], [32.47666, 0.61157],
+                        [32.47684, 0.61167], [32.47699, 0.61168], [32.47724, 0.61168], [32.47728, 0.61205],
+                        [32.47712, 0.61246], [32.47702, 0.61246], [32.47699, 0.61310], [32.47689, 0.61361],
+                        [32.47672, 0.61395], [32.47659, 0.61421], [32.47604, 0.61465], [32.47555, 0.61491],
+                        [32.47513, 0.61498], [32.47474, 0.61532], [32.47441, 0.61571], [32.47437, 0.61599],
+                        [32.47437, 0.61624], [32.47451, 0.61643], [32.47410, 0.61654], [32.47359, 0.61657],
+                        [32.47323, 0.61647], [32.47309, 0.61606], [32.47302, 0.61563], [32.47318, 0.61531],
+                        [32.47334, 0.61518], [32.47297, 0.61482], [32.47273, 0.61455], [32.47274, 0.61437],
+                        [32.47302, 0.61420], [32.47331, 0.61404], [32.47365, 0.61382]
+                    ]]
+                }
+            }]
+        };
+
+        // DATASET 2: Campus Buildings & Structures (Polygon Footprints)
+        var buildingsGeoJSON = {
+            "type": "FeatureCollection",
+            "name": "campus_buildings",
+            "features": [
+                {
+                    "type": "Feature",
+                    "properties": { "name": "Admin Block", "code": "ADM-12", "floors": 2, "use": "University Administration" },
+                    "geometry": {
+                        "type": "Polygon",
+                        "coordinates": [[[32.47590, 0.61180], [32.47640, 0.61180], [32.47640, 0.61160], [32.47590, 0.61160], [32.47590, 0.61180]]]
+                    }
+                },
+                {
+                    "type": "Feature",
+                    "properties": { "name": "Science & Engineering Complex", "code": "ENG-11", "floors": 3, "use": "Laboratories & Lectures" },
+                    "geometry": {
+                        "type": "Polygon",
+                        "coordinates": [[[32.47605, 0.61240], [32.47645, 0.61240], [32.47645, 0.61215], [32.47605, 0.61215], [32.47605, 0.61240]]]
+                    }
+                },
+                {
+                    "type": "Feature",
+                    "properties": { "name": "Main Campus Library", "code": "LIB-09", "floors": 2, "use": "Reading & Digital Repository" },
+                    "geometry": {
+                        "type": "Polygon",
+                        "coordinates": [[[32.47685, 0.61215], [32.47715, 0.61215], [32.47715, 0.61185], [32.47685, 0.61185], [32.47685, 0.61215]]]
+                    }
+                },
+                {
+                    "type": "Feature",
+                    "properties": { "name": "Agric Faculty Complex", "code": "AG-08", "floors": 1, "use": "Agricultural Studies" },
+                    "geometry": {
+                        "type": "Polygon",
+                        "coordinates": [[[32.47360, 0.61460], [32.47400, 0.61460], [32.47400, 0.61430], [32.47360, 0.61430], [32.47360, 0.61460]]]
+                    }
+                }
+            ]
+        };
+
+        // DATASET 3: Sports Grounds & Recreation (Polygons)
+        var sportsGeoJSON = {
+          "type": "FeatureCollection",
+          "name": "sports_grounds",
+          "features": [
+            {
+              "type": "Feature",
+              "properties": {
+                "name": "Lower Pitch (Running Track & Field)",
+                "type": "Athletics Oval"
+              },
+              "geometry": {
+                "type": "Polygon",
+                "coordinates": [
+                  [
+                    [
+                      32.475878,
+                      0.614215
+                    ],
+                    [
+                      32.476126,
+                      0.614262
+                    ],
+                    [
+                      32.476327,
+                      0.614159
+                    ],
+                    [
+                      32.476583,
+                      0.613777
+                    ],
+                    [
+                      32.476699,
+                      0.613373
+                    ],
+                    [
+                      32.476645,
+                      0.61307
+                    ],
+                    [
+                      32.47645,
+                      0.612846
+                    ],
+                    [
+                      32.476202,
+                      0.612773
+                    ],
+                    [
+                      32.475951,
+                      0.612877
+                    ],
+                    [
+                      32.475795,
+                      0.613232
+                    ],
+                    [
+                      32.475724,
+                      0.613586
+                    ],
+                    [
+                      32.475731,
+                      0.61404
+                    ],
+                    [
+                      32.475878,
+                      0.614215
+                    ]
+                  ]
+                ]
+              }
+            },
+            {
+              "type": "Feature",
+              "properties": {
+                "name": "Upper Pitch",
+                "type": "Football Pitch"
+              },
+              "geometry": {
+                "type": "Polygon",
+                "coordinates": [
+                  [
+                    [
+                      32.474434,
+                      0.613591
+                    ],
+                    [
+                      32.474769,
+                      0.613834
+                    ],
+                    [
+                      32.475335,
+                      0.613051
+                    ],
+                    [
+                      32.474916,
+                      0.612803
+                    ],
+                    [
+                      32.474434,
+                      0.613591
+                    ]
+                  ]
+                ]
+              }
+            },
+            {
+              "type": "Feature",
+              "properties": {
+                "name": "Woodball Court",
+                "type": "Specialized Sport"
+              },
+              "geometry": {
+                "type": "Polygon",
+                "coordinates": [
+                  [
+                    [
+                      32.475021,
+                      0.612484
+                    ],
+                    [
+                      32.475609,
+                      0.612503
+                    ],
+                    [
+                      32.475807,
+                      0.611996
+                    ],
+                    [
+                      32.475769,
+                      0.61187
+                    ],
+                    [
+                      32.475473,
+                      0.611697
+                    ],
+                    [
+                      32.475021,
+                      0.612484
+                    ]
+                  ]
+                ]
+              }
+            },
+            {
+              "type": "Feature",
+              "properties": {
+                "name": "Courts (Tennis / Handball / Volleyball)",
+                "type": "Multi-purpose Courts"
+              },
+              "geometry": {
+                "type": "Polygon",
+                "coordinates": [
+                  [
+                    [
+                      32.47512,
+                      0.613971
+                    ],
+                    [
+                      32.475382,
+                      0.614054
+                    ],
+                    [
+                      32.47586,
+                      0.613221
+                    ],
+                    [
+                      32.475573,
+                      0.613108
+                    ],
+                    [
+                      32.47512,
+                      0.613971
+                    ]
+                  ]
+                ]
+              }
+            }
+          ]
+        };
+
+        // DATASET 4: Internal Transport & Road Centerlines (LineStrings)
+        var roadsGeoJSON = {
+          "type": "FeatureCollection",
+          "name": "campus_roads",
+          "features": [
+            {
+              "type": "Feature",
+              "properties": {
+                "name": "Northern Perimeter Road",
+                "surface": "Compacted Gravel",
+                "width_m": 6.0
+              },
+              "geometry": {
+                "type": "LineString",
+                "coordinates": [
+                  [
+                    32.47427,
+                    0.61557
+                  ],
+                  [
+                    32.474764,
+                    0.615211
+                  ],
+                  [
+                    32.475268,
+                    0.614878
+                  ],
+                  [
+                    32.475719,
+                    0.614746
+                  ],
+                  [
+                    32.47607,
+                    0.614616
+                  ],
+                  [
+                    32.476321,
+                    0.614487
+                  ],
+                  [
+                    32.476448,
+                    0.614334
+                  ],
+                  [
+                    32.476578,
+                    0.61403
+                  ],
+                  [
+                    32.476737,
+                    0.613523
+                  ],
+                  [
+                    32.476869,
+                    0.613068
+                  ],
+                  [
+                    32.476943,
+                    0.612563
+                  ]
+                ]
+              }
+            },
+            {
+              "type": "Feature",
+              "properties": {
+                "name": "Eastern Access Road",
+                "surface": "Paved / Tarred",
+                "width_m": 6.0
+              },
+              "geometry": {
+                "type": "LineString",
+                "coordinates": [
+                  [
+                    32.476943,
+                    0.612563
+                  ],
+                  [
+                    32.477107,
+                    0.612308
+                  ],
+                  [
+                    32.47731,
+                    0.612054
+                  ],
+                  [
+                    32.477415,
+                    0.611775
+                  ],
+                  [
+                    32.47774,
+                    0.61167
+                  ]
+                ]
+              }
+            },
+            {
+              "type": "Feature",
+              "properties": {
+                "name": "Sports Ring Road (Inner)",
+                "surface": "Compacted Gravel",
+                "width_m": 4.5
+              },
+              "geometry": {
+                "type": "LineString",
+                "coordinates": [
+                  [
+                    32.474082,
+                    0.614362
+                  ],
+                  [
+                    32.474335,
+                    0.614132
+                  ],
+                  [
+                    32.474538,
+                    0.613902
+                  ],
+                  [
+                    32.474786,
+                    0.61399
+                  ],
+                  [
+                    32.475132,
+                    0.614122
+                  ],
+                  [
+                    32.475478,
+                    0.614295
+                  ],
+                  [
+                    32.475824,
+                    0.614442
+                  ],
+                  [
+                    32.476122,
+                    0.614514
+                  ],
+                  [
+                    32.476361,
+                    0.614476
+                  ]
+                ]
+              }
+            },
+            {
+              "type": "Feature",
+              "properties": {
+                "name": "Western Pitch Road",
+                "surface": "Compacted Gravel",
+                "width_m": 4.5
+              },
+              "geometry": {
+                "type": "LineString",
+                "coordinates": [
+                  [
+                    32.474538,
+                    0.613902
+                  ],
+                  [
+                    32.474343,
+                    0.613653
+                  ],
+                  [
+                    32.474348,
+                    0.6134
+                  ],
+                  [
+                    32.474553,
+                    0.613045
+                  ],
+                  [
+                    32.474809,
+                    0.612689
+                  ],
+                  [
+                    32.47506,
+                    0.612534
+                  ],
+                  [
+                    32.475409,
+                    0.61255
+                  ],
+                  [
+                    32.475857,
+                    0.612575
+                  ],
+                  [
+                    32.476354,
+                    0.612595
+                  ],
+                  [
+                    32.476943,
+                    0.612563
+                  ]
+                ]
+              }
+            },
+            {
+              "type": "Feature",
+              "properties": {
+                "name": "Woodball Link Road",
+                "surface": "Compacted Gravel",
+                "width_m": 4.0
+              },
+              "geometry": {
+                "type": "LineString",
+                "coordinates": [
+                  [
+                    32.475881,
+                    0.612585
+                  ],
+                  [
+                    32.475936,
+                    0.612322
+                  ],
+                  [
+                    32.47589,
+                    0.61207
+                  ],
+                  [
+                    32.47567,
+                    0.611846
+                  ],
+                  [
+                    32.475483,
+                    0.611732
+                  ]
+                ]
+              }
+            },
+            {
+              "type": "Feature",
+              "properties": {
+                "name": "Southern Admin Link Road",
+                "surface": "Paved / Tarred",
+                "width_m": 4.0
+              },
+              "geometry": {
+                "type": "LineString",
+                "coordinates": [
+                  [
+                    32.476594,
+                    0.611709
+                  ],
+                  [
+                    32.476867,
+                    0.611746
+                  ],
+                  [
+                    32.477166,
+                    0.611773
+                  ],
+                  [
+                    32.477415,
+                    0.61175
+                  ],
+                  [
+                    32.47774,
+                    0.61167
+                  ]
+                ]
+              }
+            }
+          ]
+        };
+
+        // DATASET 5: Campus Points of Interest / Facilities (Points)
+        var facilitiesGeoJSON = {
+            "type": "FeatureCollection",
+            "name": "campus_facilities",
+            "features": [
+                { "type": "Feature", "properties": { "name": "Staff Dining", "category": "Catering", "code": "SD-01", "color": "#e6194b" }, "geometry": { "type": "Point", "coordinates": [32.47589, 0.61146] } },
+                { "type": "Feature", "properties": { "name": "Canteen", "category": "Commercial", "code": "CNT-02", "color": "#f58231" }, "geometry": { "type": "Point", "coordinates": [32.47504, 0.61252] } },
+                { "type": "Feature", "properties": { "name": "Lower Pitch Pavilion", "category": "Sports", "code": "LP-03", "color": "#3cb44b" }, "geometry": { "type": "Point", "coordinates": [32.47613, 0.61339] } },
+                { "type": "Feature", "properties": { "name": "Upper Pitch Grandstand", "category": "Sports", "code": "UP-04", "color": "#008080" }, "geometry": { "type": "Point", "coordinates": [32.47492, 0.61324] } },
+                { "type": "Feature", "properties": { "name": "Courts (Tennis/Volleyball)", "category": "Sports", "code": "CRT-05", "color": "#4363d8" }, "geometry": { "type": "Point", "coordinates": [32.47550, 0.61337] } },
+                { "type": "Feature", "properties": { "name": "Woodball Clubhouse", "category": "Sports", "code": "WB-06", "color": "#911eb4" }, "geometry": { "type": "Point", "coordinates": [32.47536, 0.61214] } },
+                { "type": "Feature", "properties": { "name": "Main Security Gate", "category": "Security", "code": "GT-07", "color": "#000000" }, "geometry": { "type": "Point", "coordinates": [32.47532, 0.61165] } },
+                { "type": "Feature", "properties": { "name": "Agric Faculty Dean's Office", "category": "Academic", "code": "AG-08", "color": "#9a6324" }, "geometry": { "type": "Point", "coordinates": [32.47378, 0.61444] } },
+                { "type": "Feature", "properties": { "name": "Main Campus Library Desk", "category": "Academic", "code": "LIB-09", "color": "#f032e6" }, "geometry": { "type": "Point", "coordinates": [32.47699, 0.61200] } },
+                { "type": "Feature", "properties": { "name": "Medical Laboratory Block", "category": "Academic", "code": "ML-10", "color": "#808000" }, "geometry": { "type": "Point", "coordinates": [32.47647, 0.61188] } },
+                { "type": "Feature", "properties": { "name": "Science / Engineering Office", "category": "Academic", "code": "ENG-11", "color": "#00bcd4" }, "geometry": { "type": "Point", "coordinates": [32.47625, 0.61226] } },
+                { "type": "Feature", "properties": { "name": "Administration Complex Gate", "category": "Administration", "code": "ADM-12", "color": "#800000" }, "geometry": { "type": "Point", "coordinates": [32.47613, 0.61171] } },
+                { "type": "Feature", "properties": { "name": "Swimming Pool Pavilion", "category": "Recreation", "code": "PL-13", "color": "#0a2a8a" }, "geometry": { "type": "Point", "coordinates": [32.47411, 0.61397] } },
+                { "type": "Feature", "properties": { "name": "Anatomy Block", "category": "Academic", "code": "ANA-14", "color": "#ff8fb1" }, "geometry": { "type": "Point", "coordinates": [32.47390, 0.61596] } }
+            ]
+        };
+
+        // PERSISTENCE: restore edits saved by managers/admin (browser localStorage)
+        var STORE_KEY = 'ndejje_sdi_v2', auditLog = [];
+        try { var _s = JSON.parse(localStorage.getItem(STORE_KEY) || 'null');
+            if (false) { boundaryGeoJSON=_s.boundary; buildingsGeoJSON=_s.buildings; sportsGeoJSON=_s.sports; roadsGeoJSON=_s.roads; facilitiesGeoJSON=_s.facilities; auditLog=_s.audit||[]; }
+        } catch(e) {}
+        // =========================================================================
+        // MAP INITIALIZATION & BASEMAPS
+        // =========================================================================
+        var map = L.map('map', {
+            center: [0.6130, 32.4754],
+            zoom: 17,
+            maxZoom: 21
+        });
+
+        var esriSatellite = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+            attribution: 'Esri Satellite &copy; Ndejje SDI',
+            maxNativeZoom: 18,
+            maxZoom: 21
+        }).addTo(map);
+
+        var esriStreets = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}', {
+            attribution: 'Esri Streets &copy; Ndejje SDI',
+            maxNativeZoom: 18,
+            maxZoom: 21
+        });
+
+        // =========================================================================
+        // LEAFLET LAYERS (PARSED FROM GEOJSON)
+        // =========================================================================
+
+        // 1. Boundary Layer
+        var boundaryLayer = L.geoJSON(boundaryGeoJSON, {
+            style: { color: '#ff1744', weight: 3, dashArray: '6, 6', fillOpacity: 0.04, fillColor: '#ff1744' }
+        }).bindPopup("<b>Ndejje University Main Campus Boundary</b><br>Traced from 2024 Topographic Sheet 01.").addTo(map);
+
+        // 2. Buildings Layer
+        var buildingsLayer = L.geoJSON(buildingsGeoJSON, {
+            style: { color: '#003366', weight: 2, fillColor: '#3388ff', fillOpacity: 0.45 },
+            onEachFeature: function(feat, layer) {
+                layer.bindPopup("<b>Building: " + feat.properties.name + "</b><br>Code: " + feat.properties.code + "<br>Floors: " + feat.properties.floors + "<br>Function: " + feat.properties.use);
+            }
+        }).addTo(map);
+
+        // 3. Sports Grounds Layer
+        var sportsLayer = L.geoJSON(sportsGeoJSON, {
+            style: { color: '#2e7d32', weight: 2, fillColor: '#4caf50', fillOpacity: 0.4 },
+            onEachFeature: function(feat, layer) {
+                layer.bindPopup("<b>Facility: " + feat.properties.name + "</b><br>Type: " + feat.properties.type);
+            }
+        }).addTo(map);
+
+        // 4. Roads Layer
+        var roadsLayer = L.geoJSON(roadsGeoJSON, {
+            style: { color: '#f39c12', weight: 5, opacity: 0.95, lineCap: 'round', lineJoin: 'round' },
+            onEachFeature: function(feat, layer) {
+                layer.bindPopup("<b>Road: " + feat.properties.name + "</b><br>Surface: " + feat.properties.surface + "<br>Width: " + feat.properties.width_m + " m");
+            }
+        }).addTo(map);
+
+        // 5. Facilities Point Layer
+        var markersList = []; // For quick search lookup
+        var facilitiesLayer = L.geoJSON(facilitiesGeoJSON, {
+            pointToLayer: function(feat, latlng) {
+                var marker = L.circleMarker(latlng, {
+                    radius: 7,
+                    fillColor: feat.properties.color,
+                    color: '#ffffff',
+                    weight: 2,
+                    opacity: 1,
+                    fillOpacity: 0.95
+                });
+                marker.featureName = feat.properties.name;
+                marker.featureCategory = feat.properties.category;
+                marker.featureCode = feat.properties.code;
+                markersList.push(marker);
+                return marker;
+            },
+            onEachFeature: function(feat, layer) {
+                layer.bindPopup(
+                    "<b>" + feat.properties.name + "</b><br>" +
+                    "Category: " + feat.properties.category + "<br>" +
+                    "Asset Code: " + feat.properties.code + "<br>" +
+                    "<small>Lat: " + feat.geometry.coordinates[1].toFixed(5) + " | Lng: " + feat.geometry.coordinates[0].toFixed(5) + "</small>"
+                );
+            }
+        }).addTo(map);
+
+        // =========================================================================
+        // CARTOGRAPHIC CONTROLS (Point 8: Scale, North Arrow, Legend)
+        // =========================================================================
+
+        // Metric Scale Bar
+        L.control.scale({ metric: true, imperial: false, position: 'bottomleft' }).addTo(map);
+
+        // North Arrow Custom Control
+        var NorthArrowControl = L.Control.extend({
+            options: { position: 'topright' },
+            onAdd: function() {
+                var div = L.DomUtil.create('div', 'north-arrow');
+                div.innerHTML = '▲<br><span style="font-size:9px;margin-top:-3px;">N</span>';
+                div.title = "True North (UTM Zone 36N Grid Alignment)";
+                return div;
+            }
+        });
+        map.addControl(new NorthArrowControl());
+
+        // Collapsible Map Legend Control
+        var LegendControl = L.Control.extend({
+            options: { position: 'bottomright' },
+            onAdd: function() {
+                var div = L.DomUtil.create('div', 'legend-card');
+                div.innerHTML =
+                    '<div class="legend-title">Campus Layers Legend</div>' +
+                    '<div class="legend-row"><span class="line-sym" style="background:#ff1744;border-top:1px dashed #ff1744;"></span> Campus Boundary</div>' +
+                    '<div class="legend-row"><span class="box-sym" style="background:#3388ff;border-color:#003366;"></span> Buildings Footprints</div>' +
+                    '<div class="legend-row"><span class="box-sym" style="background:#4caf50;border-color:#2e7d32;"></span> Sports Complexes</div>' +
+                    '<div class="legend-row"><span class="line-sym" style="background:#f39c12;height:4px;"></span> Roads & Pathways</div>' +
+                    '<div class="legend-row"><span style="width:10px;height:10px;border-radius:50%;background:#00bcd4;display:inline-block;"></span> Facility Points</div>';
+                return div;
+            }
+        });
+        map.addControl(new LegendControl());
+
+        // Layer Switcher
+        var baseMaps = { "Satellite Imagery": esriSatellite, "Streets Map": esriStreets };
+        var overlayMaps = {
+            "1. Campus Boundary": boundaryLayer,
+            "2. Buildings Footprints": buildingsLayer,
+            "3. Sports Grounds": sportsLayer,
+            "4. Road Centerlines": roadsLayer,
+            "5. Campus Facilities": facilitiesLayer
+        };
+        L.control.layers(baseMaps, overlayMaps, { collapsed: false }).addTo(map);
+
+        // =========================================================================
+        // FUNCTIONAL REQUIREMENT 3: LIVE SEARCH (Point 4)
+        // =========================================================================
+        function liveSearch(val) {
+            var resBox = document.getElementById('search-results');
+            resBox.innerHTML = '';
+            if (!val || val.trim().length === 0) {
+                resBox.style.display = 'none';
+                return;
+            }
+            var query = val.toLowerCase();
+            var matches = markersList.filter(function(m) {
+                return m.featureName.toLowerCase().indexOf(query) !== -1 || m.featureCode.toLowerCase().indexOf(query) !== -1;
+            });
+
+            if (matches.length === 0) {
+                resBox.innerHTML = '<div style="padding:6px 10px;font-size:11px;color:#888;">No facilities found</div>';
+                resBox.style.display = 'block';
+                return;
+            }
+
+            matches.forEach(function(m) {
+                var item = document.createElement('div');
+                item.className = 'search-item';
+                item.innerHTML = '<b>' + m.featureName + '</b> <span style="font-size:10px;color:#666;">(' + m.featureCode + ')</span>';
+                item.onclick = function() {
+                    map.setView(m.getLatLng(), 19);
+                    m.openPopup();
+                    resBox.style.display = 'none';
+                    document.getElementById('facility-search').value = m.featureName;
+                };
+                resBox.appendChild(item);
+            });
+            resBox.style.display = 'block';
+        }
+
+        // =========================================================================
+        // FUNCTIONAL REQUIREMENT 4 & NFR 2: ROLE-BASED ACCESS & EDITING (Point 5)
+        // =========================================================================
+        var currentRole = 'public';
+        var addingFeatureMode = false;
+        var pendingLatLng = null;
+
+        function switchRole(role) {
+            currentRole = role;
+            var addBtn = document.getElementById('btn-add-feature');
+            if (role === 'manager' || role === 'admin') {
+                addBtn.style.display = 'inline-block';
+                alert("Authenticated as [" + role.toUpperCase() + "]. Transactional editing permissions unlocked (FR-04).");
+            } else {
+                addBtn.style.display = 'none';
+                addingFeatureMode = false;
+                addBtn.textContent = '➕ Click Map to Add Point';
+                map.getContainer().style.cursor = '';
+            }
+        }
+
+        function toggleAddMode() {
+            if (currentRole === 'public') return;
+            addingFeatureMode = !addingFeatureMode;
+            var btn = document.getElementById('btn-add-feature');
+            if (addingFeatureMode) {
+                btn.textContent = '❌ Cancel Add Mode';
+                btn.style.backgroundColor = '#dc3545';
+                map.getContainer().style.cursor = 'crosshair';
+                alert("Click anywhere on the campus map to place the new facility point.");
+            } else {
+                btn.textContent = '➕ Click Map to Add Point';
+                btn.style.backgroundColor = '#28a745';
+                map.getContainer().style.cursor = '';
+            }
+        }
+
+        map.on('click', function(e) {
+            if (!addingFeatureMode) return;
+            pendingLatLng = e.latlng;
+            document.getElementById('new-feat-coords').value = e.latlng.lat.toFixed(5) + ", " + e.latlng.lng.toFixed(5);
+            document.getElementById('edit-modal').style.display = 'flex';
+        });
+
+        function saveNewFeature() {
+            var name = document.getElementById('new-feat-name').value;
+            var cat = document.getElementById('new-feat-category').value;
+            var code = document.getElementById('new-feat-code').value || 'GEN-NEW';
+            if (!name) { alert("Please enter a facility name!"); return; }
+
+            // Create new feature and inject into the facilities layer
+            var newFeat = {
+                "type": "Feature",
+                "properties": { "name": name, "category": cat, "code": code, "color": "#e91e63" },
+                "geometry": { "type": "Point", "coordinates": [pendingLatLng.lng, pendingLatLng.lat] }
+            };
+            facilitiesGeoJSON.features.push(newFeat);
+
+            var newMarker = L.circleMarker(pendingLatLng, {
+                radius: 8, fillColor: '#e91e63', color: '#ffffff', weight: 2, fillOpacity: 0.95
+            }).bindPopup("<b>" + name + " (New Entry)</b><br>Category: " + cat + "<br>Code: " + code + "<br><i>Committed by: " + currentRole + "</i>");
+            newMarker.featureName = name;
+            newMarker.featureCode = code;
+            newMarker.addTo(facilitiesLayer);
+            markersList.push(newMarker);
+            newMarker.openPopup();
+
+            closeModal('edit-modal');
+            toggleAddMode();
+            document.getElementById('new-feat-name').value = '';
+            alert("Feature successfully committed to local PostGIS schema representation!");
+        }
+
+        // =========================================================================
+        // MODALS & GEOJSON DOWNLOAD DISPATCHER (Point 6 - FR5)
+        // =========================================================================
+        function openMetadataModal() { document.getElementById('metadata-modal').style.display = 'flex'; }
+        function openDownloadModal() { document.getElementById('download-modal').style.display = 'flex'; }
+        function closeModal(id) { document.getElementById(id).style.display = 'none'; }
+
+        function downloadGeoJSON(type) {
+            var dataObj, filename;
+            if (type === 'boundary') { dataObj = boundaryGeoJSON; filename = 'ndejje_boundary.geojson'; }
+            else if (type === 'buildings') { dataObj = buildingsGeoJSON; filename = 'ndejje_buildings.geojson'; }
+            else if (type === 'sports') { dataObj = sportsGeoJSON; filename = 'ndejje_sports.geojson'; }
+            else if (type === 'roads') { dataObj = roadsGeoJSON; filename = 'ndejje_roads.geojson'; }
+            else if (type === 'facilities') { dataObj = facilitiesGeoJSON; filename = 'ndejje_facilities.geojson'; }
+
+            var jsonStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(dataObj, null, 2));
+            var dlAnchor = document.createElement('a');
+            dlAnchor.setAttribute("href", jsonStr);
+            dlAnchor.setAttribute("download", filename);
+            document.body.appendChild(dlAnchor);
+            dlAnchor.click();
+            dlAnchor.remove();
+        }
+
+        // =========================================================================
+        // GPS LIVE GEOLOCATION
+        // =========================================================================
+        var userMarker = null;
+        function findMyLocation() {
+            map.locate({ setView: true, maxZoom: 19, enableHighAccuracy: true });
+        }
+        map.on('locationfound', function(e) {
+            if (userMarker) map.removeLayer(userMarker);
+            userMarker = L.circleMarker(e.latlng, { radius: 8, fillColor: '#007bff', color: '#fff', weight: 2, fillOpacity: 1 }).addTo(map)
+                .bindPopup("<b>Your Position</b><br>Accuracy: " + Math.round(e.accuracy) + " m").openPopup();
+        });
+        map.on('locationerror', function() {
+            alert("GPS location unavailable. Ensure browser location permissions are granted.");
+        });
+
+        // Close search popup if clicked elsewhere
+        document.addEventListener('click', function(e) {
+            if (!e.target.closest('.search-container')) {
+                document.getElementById('search-results').style.display = 'none';
+            }
+        });
+    </script>
+
+<script>
+// ===== SDI IMPROVEMENTS: auth, RBAC, edit/delete, persistence, per-dataset ISO 19115, UTM export, policies =====
+var DS = {
+  boundary:{g:boundaryGeoJSON,l:boundaryLayer,t:'Campus Boundary'}, buildings:{g:buildingsGeoJSON,l:buildingsLayer,t:'Buildings Footprints'},
+  sports:{g:sportsGeoJSON,l:sportsLayer,t:'Sports Grounds'}, roads:{g:roadsGeoJSON,l:roadsLayer,t:'Road Centerlines'}, facilities:{g:facilitiesGeoJSON,l:facilitiesLayer,t:'Campus Facility Points'}
+};
+var PERMS = { public:{edit:false,del:false,dl:['boundary','buildings','sports','roads']},
+  manager:{edit:true,del:false,dl:['boundary','buildings','sports','roads','facilities']},
+  admin:{edit:true,del:true,dl:['boundary','buildings','sports','roads','facilities']} };
+var PASS = { manager:'estates2026', admin:'ict2026' }; // DEMO ONLY: client-side; a real SDI needs server-side auth (e.g. GeoServer/PostGIS roles)
+var SRC = 'Detailed Topographic Survey of Ndejje University Main Campus (Bombo), Sheet 01, scale 1:1000, surveyed by Survey Students 2023/2024 (2 Jul 2024), designed 17 Jul 2024';
+var META = {
+  boundary:{abs:'Perimeter of Ndejje University Main Campus.',kw:'boundary, campus, cadastre',acc:'about ±5 m (digitised from 1:1000 sheet)'},
+  buildings:{abs:'Schematic building footprints (Admin, Science, Library, Agric).',kw:'buildings, campus, infrastructure',acc:'about ±10 m (schematic rectangles; to be replaced by surveyed footprints)'},
+  sports:{abs:'Pitches and courts: Lower Pitch, Upper Pitch, Woodball, multi-purpose courts.',kw:'sports, recreation, pitches',acc:'about ±5 m (digitised from 1:1000 sheet)'},
+  roads:{abs:'Internal road centerlines with surface type and width.',kw:'roads, transport, centerline',acc:'about ±5 m (digitised from 1:1000 sheet)'},
+  facilities:{abs:'Point facilities (dining, canteen, gate, pool, anatomy block).',kw:'facilities, POI, services',acc:'about ±5 m; northern pins provisional, not ground-verified'}
+};
+var fcode = {Polygon:'surface',LineString:'curve',Point:'point'};
+function persist(){ try{ localStorage.setItem(STORE_KEY, JSON.stringify({boundary:boundaryGeoJSON,buildings:buildingsGeoJSON,sports:sportsGeoJSON,roads:roadsGeoJSON,facilities:facilitiesGeoJSON,audit:auditLog})); }catch(e){} }
+function log(action,key,name){ auditLog.push({t:new Date().toISOString().slice(0,16).replace('T',' '),r:currentRole,a:action,d:key,n:name||''}); persist(); }
+function esc(x){ return String(x).replace(/&/g,'&amp;').replace(/</g,'&lt;'); }
+function modalShell(id,title,body){ var c=document.getElementById(id).firstElementChild; c.innerHTML='<div class="modal-header"><span class="modal-title">'+title+'</span><button class="close-btn" onclick="closeModal(\''+id+'\')">&times;</button></div>'+body; document.getElementById(id).style.display='flex'; }
+function keyOf(f){ for(var k in DS){ if(DS[k].g.features.indexOf(f)>-1) return k; } return null; }
+
+// --- Login (passcode) + role
+function switchRole(role){
+  if(role!=='public'){ var pw=prompt('Enter '+role.toUpperCase()+' passcode (demo: estates2026 / ict2026):'); if(pw!==PASS[role]){ alert('Access denied.'); document.getElementById('user-role').value=currentRole; return; } }
+  currentRole=role; addingFeatureMode=false; map.getContainer().style.cursor='';
+  var b=document.getElementById('btn-add-feature'); b.style.display=PERMS[role].edit?'inline-block':'none'; b.textContent='➕ Click Map to Add Point'; b.style.backgroundColor='#28a745';
+  map.closePopup(); log('login',role);
+}
+// --- New point: persist + make editable
+var _snf=saveNewFeature;
+saveNewFeature=function(){ var n=facilitiesGeoJSON.features.length; _snf(); if(facilitiesGeoJSON.features.length>n){ markersList[markersList.length-1].feature=facilitiesGeoJSON.features[n]; log('add','facilities',facilitiesGeoJSON.features[n].properties.name); } };
+// --- Edit / delete existing features (popup buttons)
+var cur=null;
+function popupHtml(f){ var r=''; for(var k in f.properties){ if(k!=='color') r+='<b>'+esc(k)+':</b> '+esc(f.properties[k])+'<br>'; } return r; }
+map.on('popupopen',function(e){
+  var ly=e.popup._source; if(!ly||!ly.feature||!PERMS[currentRole].edit) return; var key=keyOf(ly.feature); if(!key) return;
+  var d=document.createElement('div'); d.style.cssText='margin-top:6px;border-top:1px solid #ddd;padding-top:4px';
+  d.innerHTML='<button class="btn-tool">✏️ Edit attributes</button>'+(PERMS[currentRole].del?' <button class="btn-tool" style="color:#c00">🗑 Delete</button>':'');
+  var bs=d.querySelectorAll('button'); bs[0].onclick=function(){ openAttr(ly,key); }; if(bs[1]) bs[1].onclick=function(){ delFeat(ly,key); };
+  e.popup._contentNode.appendChild(d); e.popup.update();
+});
+function openAttr(ly,key){ cur={ly:ly,key:key}; var f=ly.feature,h='';
+  for(var k in f.properties){ if(k==='color') continue; h+='<div class="form-row"><label>'+esc(k)+'</label><input type="text" data-k="'+esc(k)+'" value="'+esc(f.properties[k])+'"></div>'; }
+  modalShell('attr-modal','Edit '+DS[key].t+' attributes',h+'<button class="btn-tool btn-primary" style="width:100%;padding:8px;" onclick="saveAttr()">💾 Save changes</button>'); }
+function saveAttr(){ var f=cur.ly.feature; document.querySelectorAll('#attr-card input').forEach(function(i){ var k=i.dataset.k; f.properties[k]=(typeof f.properties[k]==='number')?(Number(i.value)||0):i.value; });
+  cur.ly.bindPopup(popupHtml(f)); if(cur.key==='facilities'){ cur.ly.featureName=f.properties.name; cur.ly.featureCode=f.properties.code; }
+  log('edit',cur.key,f.properties.name); closeModal('attr-modal'); map.closePopup(); }
+function delFeat(ly,key){ if(!PERMS[currentRole].del||!confirm('Delete "'+ly.feature.properties.name+'" permanently?')) return;
+  var g=DS[key].g.features; g.splice(g.indexOf(ly.feature),1); DS[key].l.removeLayer(ly); var m=markersList.indexOf(ly); if(m>-1) markersList.splice(m,1);
+  log('delete',key,ly.feature.properties.name); map.closePopup(); }
+
+// --- UTM 36N (EPSG:32636) conversion for export
+function toUTM(lon,lat){ var a=6378137,f=1/298.257223563,k0=0.9996,e2=f*(2-f),ep=e2/(1-e2),ph=lat*Math.PI/180,A=(lon-33)*Math.PI/180*Math.cos(ph),
+  N=a/Math.sqrt(1-e2*Math.sin(ph)*Math.sin(ph)),T=Math.pow(Math.tan(ph),2),C=ep*Math.pow(Math.cos(ph),2),e4=e2*e2,e6=e4*e2,
+  M=a*((1-e2/4-3*e4/64-5*e6/256)*ph-(3*e2/8+3*e4/32+45*e6/1024)*Math.sin(2*ph)+(15*e4/256+45*e6/1024)*Math.sin(4*ph)-35*e6/3072*Math.sin(6*ph));
+  var x=k0*N*(A+(1-T+C)*Math.pow(A,3)/6+(5-18*T+T*T+72*C-58*ep)*Math.pow(A,5)/120)+500000,
+  y=k0*(M+N*Math.tan(ph)*(A*A/2+(5-T+9*C+4*C*C)*Math.pow(A,4)/24+(61-58*T+T*T+600*C-330*ep)*Math.pow(A,6)/720));
+  return [Math.round(x*100)/100,Math.round(y*100)/100]; }
+function conv(c){ return typeof c[0]==='number'?toUTM(c[0],c[1]):c.map(conv); }
+function saveFile(txt,name,mime){ var a=document.createElement('a'); a.href='data:'+mime+';charset=utf-8,'+encodeURIComponent(txt); a.download=name; document.body.appendChild(a); a.click(); a.remove(); }
+function downloadGeoJSON(type){
+  if(PERMS[currentRole].dl.indexOf(type)<0){ alert('Download of this dataset is not permitted for your role ('+currentRole+').'); return; }
+  var utm=document.getElementById('out-crs')&&document.getElementById('out-crs').value==='32636', o=JSON.parse(JSON.stringify(DS[type].g));
+  if(utm){ o.features.forEach(function(f){ f.geometry.coordinates=conv(f.geometry.coordinates); }); }
+  o.crs={type:'name',properties:{name:'urn:ogc:def:crs:EPSG::'+(utm?'32636':'4326')}};
+  saveFile(JSON.stringify(o,null,2),'ndejje_'+type+(utm?'_utm36n':'')+'.geojson','text/json'); log('download',type,utm?'EPSG:32636':'EPSG:4326'); }
+function openDownloadModal(){ var h='<p style="font-size:12px;margin-top:0;">Role: <b>'+currentRole+'</b>. Locked datasets need a higher role.</p><div class="form-row"><label>Output CRS</label><select id="out-crs"><option value="4326">WGS 84 (EPSG:4326)</option><option value="32636">WGS 84 / UTM 36N (EPSG:32636)</option></select></div><table class="meta-table">';
+  for(var k in DS){ var ok=PERMS[currentRole].dl.indexOf(k)>-1; h+='<tr><th>'+DS[k].t+'</th><td>'+DS[k].g.features.length+' features</td><td><button class="btn-tool btn-primary" '+(ok?'':'disabled style="opacity:.4"')+' onclick="downloadGeoJSON(\''+k+'\')">'+(ok?'Export .geojson':'🔒 Locked')+'</button></td></tr>'; }
+  modalShell('download-modal','Export Spatial Datasets',h+'</table>'); }
+
+// --- Per-dataset ISO 19115 metadata
+function metaRows(k){ var g=DS[k].g, b=DS[k].l.getBounds(), ps=g.features[0]?Object.keys(g.features[0].properties).filter(function(x){return x!=='color';}).join(', '):'-', m=META[k];
+  return [['Title','Ndejje University Main Campus: '+DS[k].t],['Abstract',m.abs],['Author / Originator','Survey Students 2023/2024, Ndejje University'],['Custodian','Directorate of Estates &amp; Works; maintained by ICT/GIS Section'],
+  ['Date','Surveyed 2 Jul 2024; sheet designed 17 Jul 2024'],['Projection','Stored/served EPSG:4326; export also EPSG:32636 (WGS 84 / UTM 36N)'],['Accuracy (horizontal)',m.acc],['Source / Lineage',SRC],
+  ['Format','GeoJSON (OGC); '+g.features.length+' features, '+(g.features[0]?g.features[0].geometry.type:'')],['Attributes',ps],['Keywords',m.kw],
+  ['Extent (W,S,E,N)',[b.getWest(),b.getSouth(),b.getEast(),b.getNorth()].map(function(v){return v.toFixed(5);}).join(', ')],['Access constraints','See Policies panel: public can view/download open layers only'],['Language / Standard','English; ISO 19115:2014']]; }
+function openMetadataModal(k){ k=(typeof k==='string')?k:'roads'; var sel='<div class="form-row"><label>Dataset</label><select onchange="openMetadataModal(this.value)">'+Object.keys(DS).map(function(x){return '<option value="'+x+'"'+(x===k?' selected':'')+'>'+DS[x].t+'</option>';}).join('')+'</select></div>';
+  var t='<table class="meta-table">'+metaRows(k).map(function(r){return '<tr><th>'+r[0]+'</th><td>'+r[1]+'</td></tr>';}).join('')+'</table>';
+  modalShell('metadata-modal','ISO 19115 Metadata',sel+t+'<button class="btn-tool btn-primary" onclick="exportMeta(\''+k+'\')">Export metadata XML</button>'); }
+function exportMeta(k){ var r=metaRows(k),x='<?xml version="1.0" encoding="UTF-8"?>\n<gmd:MD_Metadata xmlns:gmd="http://www.isotc211.org/2005/gmd">\n  <gmd:metadataStandardName>ISO 19115:2014</gmd:metadataStandardName>\n  <gmd:dateStamp>'+new Date().toISOString().slice(0,10)+'</gmd:dateStamp>\n';
+  r.forEach(function(a){ x+='  <field name="'+a[0]+'">'+a[1].replace(/&amp;/g,'and').replace(/</g,'&lt;')+'</field>\n'; }); saveFile(x+'</gmd:MD_Metadata>','ndejje_'+k+'_metadata.xml','text/xml'); }
+
+// --- Policies, data sharing, services, audit log
+function openPolicyModal(){ var yn=function(b){return b?'✅':'❌';};
+  var h='<b>Access matrix</b><table class="meta-table"><tr><th>Role</th><th>View</th><th>Edit</th><th>Delete</th><th>Download</th></tr>'+
+  '<tr><td>Public / Student</td><td>✅</td><td>❌</td><td>❌</td><td>Open layers (4 of 5)</td></tr><tr><td>Estates Data Manager</td><td>✅</td><td>✅</td><td>❌</td><td>All layers</td></tr><tr><td>ICT System Admin</td><td>✅</td><td>✅</td><td>✅</td><td>All layers + reset</td></tr></table>'+
+  '<b>Data sharing policy</b><ul style="font-size:12px;padding-left:18px;"><li>Open layers (boundary, buildings, sports, roads) are free for academic and planning use with attribution to Ndejje University.</li><li>Facility points and any utility data are restricted to staff roles.</li><li>All edits, deletions and downloads are logged below.</li><li>Data is provisional until ground-verified; do not use for legal boundary decisions.</li></ul>'+
+  '<b>SDI services</b><p style="font-size:11px;color:#555;margin:2px 0;">Planned GeoServer endpoints (not live in this prototype, data is served from GeoJSON):</p><code style="font-size:10px;display:block;word-break:break-all;">WMS: https://gis.ndejje.ac.ug/geoserver/ndejje/wms?service=WMS&amp;request=GetCapabilities<br>WFS: https://gis.ndejje.ac.ug/geoserver/ndejje/wfs?service=WFS&amp;request=GetCapabilities</code>'+
+  '<p style="font-size:12px;"><b>Your role now:</b> '+currentRole+' ('+yn(PERMS[currentRole].edit)+' edit, '+yn(PERMS[currentRole].del)+' delete)</p><b>Recent activity</b><div style="font-size:11px;max-height:110px;overflow:auto;">'+
+  (auditLog.slice(-10).reverse().map(function(a){return esc(a.t+' | '+a.r+' | '+a.a+' '+a.d+' '+a.n);}).join('<br>')||'No activity yet')+'</div>'+
+  (currentRole==='admin'?'<button class="btn-tool" style="margin-top:8px;color:#c00" onclick="if(confirm(\'Reset all data to the original?\')){localStorage.removeItem(STORE_KEY);location.reload();}">Reset data</button>':'');
+  modalShell('policy-modal','Policies, Sharing &amp; Services',h); }
+</script>
+<script>switchRole=function(){};toggleAddMode=function(){};</script>
+<script>
+// ===== GPS (precise, continuous) + tap-to-expand detailed legend =====
+map.off('locationfound'); map.off('locationerror');
+var gpsMarker=null, gpsCircle=null, gpsBest=null, gpsTimer=null;
+function stopGPS(){ map.stopLocate(); clearTimeout(gpsTimer); }
+function findMyLocation(){
+  stopGPS(); gpsBest=null;
+  if(!navigator.geolocation){ alert('Geolocation is not supported on this device.'); return; }
+  map.locate({watch:true,setView:false,enableHighAccuracy:true,maximumAge:0,timeout:30000});
+  gpsTimer=setTimeout(stopGPS,60000); // stop after 60 s to save battery
+}
+map.on('locationfound',function(e){
+  if(!gpsBest||e.accuracy<=gpsBest.accuracy*1.2){ gpsBest=e; } else { return; } // ignore worse (jumpy) fixes
+  if(gpsMarker) map.removeLayer(gpsMarker); if(gpsCircle) map.removeLayer(gpsCircle);
+  gpsCircle=L.circle(e.latlng,{radius:e.accuracy,color:'#007bff',weight:1,fillOpacity:0.12}).addTo(map);
+  var good=e.accuracy<=15, msg=good?'Good fix.':'Still improving. Stay outdoors with a clear sky and keep Location set to "High accuracy / Precise".';
+  gpsMarker=L.circleMarker(e.latlng,{radius:8,fillColor:'#007bff',color:'#fff',weight:2,fillOpacity:1}).addTo(map)
+    .bindPopup('<b>Your position</b><br>Accuracy: ±'+Math.round(e.accuracy)+' m<br><small>'+msg+'</small>');
+  if(!map._gpsCentred){ map.setView(e.latlng,Math.min(19,e.accuracy>50?17:19)); map._gpsCentred=true; }
+  gpsMarker.openPopup();
+  if(e.accuracy<=8) stopGPS(); // very good fix reached
+});
+map.on('locationerror',function(e){ stopGPS(); alert('Could not get your location: '+e.message+'\nTurn on device Location (High accuracy) and allow it for this site.'); });
+
+// --- Legend: compact chip, expands on tap
+document.querySelectorAll('.legend-card').forEach(function(n){ var c=n.closest('.leaflet-control'); if(c) c.remove(); });
+var DetLegend=L.Control.extend({ options:{position:'bottomright'}, onAdd:function(){
+  var d=L.DomUtil.create('div','legend-card'); d.style.cssText='cursor:pointer;max-width:260px;max-height:60vh;overflow:auto;';
+  var open=false;
+  function render(){
+    if(!open){ d.innerHTML='<b>🗺 Legend ▸</b> <span style="color:#666">tap to expand</span>'; return; }
+    var sw=function(c,b,dash){ return '<span class="box-sym" style="background:'+c+';border-color:'+b+(dash?';border-style:dashed':'')+'"></span>'; };
+    var cats={}; facilitiesGeoJSON.features.forEach(function(f){ var k=f.properties.category||'Other'; cats[k]=cats[k]||{c:f.properties.color||'#e91e63',n:0}; cats[k].n++; });
+    var h='<div class="legend-title">Legend ▾ <span style="font-weight:normal;color:#666">(tap to close)</span></div>';
+    h+='<div class="legend-row">'+sw('rgba(255,23,68,.15)','#ff1744',1)+' Campus boundary ('+boundaryGeoJSON.features.length+')</div>';
+    h+='<div class="legend-row">'+sw('#3388ff','#003366')+' Buildings ('+buildingsGeoJSON.features.length+')</div><div style="margin-left:20px;color:#555">'+buildingsGeoJSON.features.map(function(f){return f.properties.name;}).join(', ')+'</div>';
+    h+='<div class="legend-row">'+sw('#4caf50','#2e7d32')+' Sports grounds ('+sportsGeoJSON.features.length+')</div><div style="margin-left:20px;color:#555">'+sportsGeoJSON.features.map(function(f){return f.properties.name;}).join('; ')+'</div>';
+    h+='<div class="legend-row"><span class="line-sym" style="background:#f39c12;height:4px;"></span> Roads ('+roadsGeoJSON.features.length+')</div><div style="margin-left:20px;color:#555">'+roadsGeoJSON.features.map(function(f){return f.properties.name+' ('+f.properties.surface+', '+f.properties.width_m+' m)';}).join('<br>')+'</div>';
+    h+='<div class="legend-row"><b>Facility points ('+facilitiesGeoJSON.features.length+')</b></div>';
+    for(var k in cats){ h+='<div class="legend-row" style="margin-left:12px;"><span style="width:10px;height:10px;border-radius:50%;background:'+cats[k].c+';display:inline-block;"></span> '+k+' ('+cats[k].n+')</div>'; }
+    h+='<div class="legend-row" style="margin-left:12px;"><span style="width:10px;height:10px;border-radius:50%;background:#007bff;display:inline-block;"></span> Your GPS position (circle = accuracy)</div>';
+    h+='<div style="border-top:1px solid #ccc;margin-top:4px;padding-top:3px;color:#555">CRS: WGS 84 (EPSG:4326). Source: 2024 topographic survey, 1:1000. Tap a feature for details.</div>';
+    d.innerHTML=h;
+  }
+  L.DomEvent.disableClickPropagation(d); L.DomEvent.disableScrollPropagation(d);
+  d.addEventListener('click',function(){ open=!open; render(); });
+  render(); return d; } });
+map.addControl(new DetLegend());
+</script>
+
+<script>
+// ===== Dashboard-style header + slide-in summary panel =====
+(function(){
+  var P=document.getElementById('npanel'),SH=document.getElementById('nshade');
+  var sc=document.querySelector('.search-container'); // keep live search
+  function ring(c){return c[0];} 
+  function area(){ try{var r=boundaryGeoJSON.features[0].geometry.coordinates[0].map(function(c){return toUTM(c[0],c[1]);}),a=0;for(var i=0;i<r.length-1;i++)a+=r[i][0]*r[i+1][1]-r[i+1][0]*r[i][1];return Math.abs(a/2)/10000;}catch(e){return 0;} }
+  function len(){ var t=0; roadsGeoJSON.features.forEach(function(f){var c=f.geometry.coordinates.map(function(p){return toUTM(p[0],p[1]);});for(var i=1;i<c.length;i++)t+=Math.hypot(c[i][0]-c[i-1][0],c[i][1]-c[i-1][1]);}); return t/1000; }
+  function render(){
+    var cats={}; facilitiesGeoJSON.features.forEach(function(f){var k=f.properties.category||'Other';cats[k]=cats[k]||{c:f.properties.color||'#e91e63',n:0};cats[k].n++;});
+    var h='<div class="ncard" style="display:flex;align-items:center;gap:12px"><div class="logo" style="width:52px;height:52px;border-radius:14px;background:#0f4d4a;border:1px solid #1b7f78;display:flex;align-items:center;justify-content:center;font-size:26px">🎓</div><div style="flex:1"><b style="font-size:19px">Ndejje University</b><br><span style="color:#b8c7d6">Main Campus (Bombo) Web Map</span></div><button id="nclose">✕</button></div>';
+    h+='<div class="ncard nsrch"><div class="nh">Search <span class="npill">Live</span></div><div id="nslot"></div></div>';
+    h+='<div class="ncard"><div class="nh">Campus Summary <span class="npill">2024 Survey</span></div>'+
+      '<div class="nrow">Buildings<b>'+buildingsGeoJSON.features.length+'</b></div><div class="nrow">Facility points<b>'+facilitiesGeoJSON.features.length+'</b></div>'+
+      '<div class="nrow">Sports grounds<b>'+sportsGeoJSON.features.length+'</b></div><div class="nrow">Road network (km)<b>'+len().toFixed(2)+'</b></div><div class="nrow">Campus area (ha)<b>'+area().toFixed(1)+'</b></div></div>';
+    h+='<div class="ncard"><div class="nh">Facilities by Category <span class="npill">Auto</span></div>';
+    for(var k in cats){ h+='<div class="nrow"><span><span style="display:inline-block;width:12px;height:12px;border-radius:50%;background:'+cats[k].c+';margin-right:10px"></span>'+k+'</span><b style="font-size:18px">'+cats[k].n+'</b></div>'; }
+    h+='</div><div class="ncard"><div class="nh">Roads <span class="npill">GeoJSON</span></div>'+roadsGeoJSON.features.map(function(f){return '<div class="nrow"><span>'+f.properties.name+'</span><span style="font-size:12px">'+f.properties.surface+'</span></div>';}).join('')+'</div>';
+    h+='<div style="font-size:11px;color:#8fa3b8;text-align:center;padding:4px 0 16px">Display: WGS 84 / Web Mercator · Storage: UTM 36N (EPSG:32636)<br>Source: Ndejje University topographic survey, 1:1000</div>';
+    P.innerHTML=h; if(sc) document.getElementById('nslot').appendChild(sc);
+    document.getElementById('nclose').onclick=close;
+  }
+  function open(){ render(); P.classList.add('open'); SH.classList.add('open'); }
+  function close(){ P.classList.remove('open'); SH.classList.remove('open'); }
+  document.getElementById('nmenu').onclick=open; SH.onclick=close;
+  // floating GPS button under the zoom control
+  var G=L.Control.extend({options:{position:'topleft'},onAdd:function(){var d=L.DomUtil.create('div','gpsbtn');d.innerHTML='📍';d.title='My location';L.DomEvent.disableClickPropagation(d);d.onclick=function(){findMyLocation();};return d;}});
+  map.addControl(new G());
+  setTimeout(function(){map.invalidateSize();},300); window.addEventListener('resize',function(){map.invalidateSize();});
+})();
+</script>
+</body>
+</html>
